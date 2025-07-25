@@ -9,7 +9,7 @@ export class Crawl4aiService {
     this.serverUrl = config.crawl4ai.serverUrl;
   }
 
-  public async deepCrawlAndExtract(url: string, schema: any, instruction: string, modelName: string) {
+  public async deepCrawlAndExtract(url: string) {
     const payload: any = {
       urls: [url],
       browser_config: {
@@ -27,23 +27,14 @@ export class Crawl4aiService {
             "document.querySelectorAll(\"a:is(:contains('Next'), :contains('next'), :contains('load more'), :contains('Load More'))\").forEach(el => el.click())",
             "document.querySelectorAll(\"button:is(:contains('Next'), :contains('next'), :contains('load more'), :contains('Load More'))\").forEach(el => el.click())"
           ],
-          // extraction_strategy: {
-          //   type: "LLMExtractionStrategy",
-          //   params: {
-          //     llm_config: {
-          //       type: "LLMConfig",
-          //       params: {
-          //         provider: modelName,
-          //         api_token: config.llm.token,
-          //         base_url: config.llm.url
-          //       }
-          //     },
-          //     instruction: instruction,
-          //     chunk_token_threshold: 6000,
-          //     apply_chunking: true,
-          //
-          //   }
-          // }
+          deep_crawl_strategy: {
+            type: "BFSDeepCrawlStrategy",
+            params: {
+              max_depth: 2,
+              include_external: false,
+              max_pages: 10
+            }
+          },
         }
       }
     };
@@ -68,4 +59,5 @@ export class Crawl4aiService {
       return null;
     }
   }
+
 }

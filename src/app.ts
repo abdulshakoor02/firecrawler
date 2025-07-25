@@ -21,13 +21,7 @@ const chunk = Container.get(ChunkingService)
 // const model = await ai.openai.models.list()
 // console.log(model)
 const data = await crawl.deepCrawlAndExtract(
-  'https://www.carrefouruae.com/mafuae/en/c/F11600000',
-  {
-    name: 'string',
-    price: 'number',
-    description: 'string'
-  },
-  `Extract all product data from this page.`, 'openai/moonshot-v1-128k') as any;
+  'https://instashop.com/en-ae/client/viva-supermarket-dip/category/p6VJ5xGtWs') as any;
 console.log(data?.results?.[0]?.html?.length)
 console.log(data?.results?.[0]?.markdown?.raw_markdown?.length)
 const chunked = chunk.chunkStringByCharCount(
@@ -41,8 +35,14 @@ Convert the following content into a JSON array of product objects
 ${val}
 `);
   const res = JSON.parse(parsedData?.choices?.[0]?.message?.content as any)
-  // console.log(res)
+  console.log(res.products)
   console.log(`total products ${res.products.length}`)
+  const result = await embedding.producEmbeddings(
+    res.products as unknown as Product[],
+    20,
+    'viva'
+  ) as ProductWithEmbedding;
+  await qdrant.upsertPoints('products', result);
 })
 // const parsedData = await ai.parse(`
 // Convert the following content into a JSON array of product objects 
