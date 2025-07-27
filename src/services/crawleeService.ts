@@ -37,6 +37,11 @@ export class CrawleeService {
     let markdownContent = '';
 
     const crawler = new PuppeteerCrawler({
+      launchContext: {
+        launchOptions: {
+          args: ['--no-sandbox'],
+        },
+      },
       requestHandler: async ({ page, request }) => {
         let htmlContent = '';
         try {
@@ -68,6 +73,11 @@ export class CrawleeService {
     const crawler = new PuppeteerCrawler({
       requestQueue,
       maxRequestsPerCrawl: maxRequestsPerCrawl,
+      launchContext: {
+        launchOptions: {
+          args: ['--no-sandbox'],
+        },
+      },
       requestHandler: async ({ page, request }) => {
         const currentDepth = request.userData?.depth || 0;
         
@@ -143,6 +153,11 @@ export class CrawleeService {
         minConcurrency: 2, // Reduced concurrency to prevent resource conflicts
         requestQueue,
         maxRequestsPerCrawl: maxPages, // Process all pages in parallel
+        launchContext: {
+          launchOptions: {
+            args: ['--no-sandbox'],
+          },
+        },
         handleFailedRequestFunction: async ({ request, error }) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`[deepCrawlWithPagination] Request failed for ${request.url}:`, errorMessage);
