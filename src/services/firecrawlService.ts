@@ -1,7 +1,7 @@
 import { Service } from 'typedi';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import { config } from '../../config';
-import { Schema, z } from 'zod';
+import { type Schema, z } from 'zod';
 import { required } from 'zod/mini';
 
 @Service()

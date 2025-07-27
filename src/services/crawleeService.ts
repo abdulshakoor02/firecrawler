@@ -1,5 +1,5 @@
 import { Service, Container } from 'typedi';
-import { PuppeteerCrawler, log, RequestQueue, enqueueLinks } from 'crawlee';
+import { PuppeteerCrawler, log, RequestQueue } from 'crawlee';
 import TurndownService from 'turndown';
 import {
   EmbeddingService,
@@ -63,11 +63,14 @@ export class CrawleeService {
     maxDepth: number = 1,
   ): Promise<string[]> {
     const requestQueue = await RequestQueue.open();
+    const markdownContents: string[] = [];
 
     const crawler = new PuppeteerCrawler({
       requestQueue,
-      maxRequestsPerCrawl: maxRequestsPerCrawl, // Only process the initial request, pagination handled internally
+      maxRequestsPerCrawl: maxRequestsPerCrawl,
       requestHandler: async ({ page, request }) => {
+        const currentDepth = request.userData?.depth || 0;
+        
         let htmlContent = '';
         try {
           htmlContent = await page.$eval('main, .main-content, #content', (element) => element.innerHTML);
@@ -77,20 +80,34 @@ export class CrawleeService {
 
         if (htmlContent) {
           const markdown = this.turndownService.turndown(htmlContent);
-          console.log(markdown.length)
+          markdownContents.push(markdown);
+          console.log(`Extracted ${markdown.length} characters from ${request.url} (depth: ${currentDepth})`);
         }
 
-        if ((request.userData.depth || 0) < maxDepth) {
-          await enqueueLinks({
-            userData: { depth: (request.userData.depth || 0) + 1 },
-          });
+        // Enqueue links for deeper crawling if we haven't reached max depth
+        if (currentDepth < maxDepth) {
+          const links = await page.$$eval('a[href]', (anchors) => 
+            anchors.map(anchor => anchor.href).filter(href => href)
+          );
+          
+          for (const link of links) {
+            try {
+              await requestQueue.addRequest({
+                url: link,
+                userData: { depth: currentDepth + 1 }
+              });
+            } catch (error) {
+              // Skip invalid URLs
+              console.log(`Skipping invalid URL: ${link}`);
+            }
+          }
         }
       },
     });
 
     await requestQueue.addRequest({ url: startUrl, userData: { depth: 0 } });
     await crawler.run();
-    return []; // This function doesn't collect markdown, so return empty array
+    return markdownContents;
   }
 
   public async deepCrawlWithPaginationAndInteraction(
@@ -121,15 +138,16 @@ export class CrawleeService {
       // Create a unique RequestQueue for this crawler instance to avoid conflicts
       const queueId = `${source}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const requestQueue = await RequestQueue.open(queueId);
-
+      
       const crawler = new PuppeteerCrawler({
-        minConcurrency: 5, // Reduced concurrency to prevent resource conflicts
+        minConcurrency: 2, // Reduced concurrency to prevent resource conflicts
         requestQueue,
         maxRequestsPerCrawl: maxPages, // Process all pages in parallel
         handleFailedRequestFunction: async ({ request, error }) => {
-          console.error(`[deepCrawlWithPagination] Request failed for ${request.url}:`, error.message);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`[deepCrawlWithPagination] Request failed for ${request.url}:`, errorMessage);
           // Don't retry on ENOENT errors
-          if (error.message.includes('ENOENT')) {
+          if (errorMessage.includes('ENOENT')) {
             return;
           }
         },
