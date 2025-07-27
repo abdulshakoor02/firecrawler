@@ -24,6 +24,7 @@ export class Crawl4aiService {
           magic: true,
           scan_full_page: true,
           js_code: [
+            "for (let i = 0; i < 5; i++) { setTimeout(() => { window.scrollTo(0, document.body.scrollHeight); }, i * 2000); }",
             "document.querySelectorAll(\"a:is(:contains('Next'), :contains('next'), :contains('load more'), :contains('Load More'))\").forEach(el => el.click())",
             "document.querySelectorAll(\"button:is(:contains('Next'), :contains('next'), :contains('load more'), :contains('Load More'))\").forEach(el => el.click())"
           ],

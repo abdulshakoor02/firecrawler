@@ -21,7 +21,7 @@ const orchestrate = Container.get(OrchestraterService)
 const payload = []
 payload.push(orchestrate.crawl4aiJob('https://gcc.luluhypermarket.com/en-ae/grocery/', 'lulu'))
 payload.push(orchestrate.crawl4aiJob('https://gcc.luluhypermarket.com/en-ae/grocery/', 'lulu'))
-
+Promise.all(payload)
 // Process products if needed
 // const result = await embedding.producEmbeddings(
 //   products,
