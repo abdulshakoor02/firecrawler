@@ -2,6 +2,7 @@ type Config = {
   openai: {
     apiKey: string;
     baseUrl: string;
+    model: string;
   };
   qdrant: {
     url: string;
@@ -24,6 +25,7 @@ export const config: Config = {
   openai: {
     apiKey: process.env.MOONSHOT_API_KEY!,
     baseUrl: process.env.MOONSHOT_BASE_URL!,
+    model: process.env.MOONSHOT_MODEL!
   },
   qdrant: {
     url: process.env.QDRANT_URL!,

@@ -19,7 +19,7 @@ export class OpenaiService {
       const history = [{ role: 'system', content: 'You are a Kimi,an AI assitant provided by Moonshot AI.' }] as any
       history.push({ role: 'user', content: prompt })
       const response = await this.openai.chat.completions.create({
-        model: "moonshot-v1-8k",
+        model: config.openai.model,
         messages: history,
         max_tokens: 4096
       })
@@ -45,7 +45,7 @@ please output your data in following json format:
       })
       history.push({ role: 'user', content: prompt })
       const response = await this.openai.chat.completions.create({
-        model: "moonshot-v1-8k",
+        model: config.openai.model,
         messages: history,
         response_format: { type: 'json_object' },
         max_tokens: 4096

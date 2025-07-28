@@ -80,7 +80,7 @@ export class CrawleeService {
       },
       requestHandler: async ({ page, request }) => {
         const currentDepth = request.userData?.depth || 0;
-        
+
         let htmlContent = '';
         try {
           htmlContent = await page.$eval('main, .main-content, #content', (element) => element.innerHTML);
@@ -96,10 +96,10 @@ export class CrawleeService {
 
         // Enqueue links for deeper crawling if we haven't reached max depth
         if (currentDepth < maxDepth) {
-          const links = await page.$$eval('a[href]', (anchors) => 
+          const links = await page.$$eval('a[href]', (anchors) =>
             anchors.map(anchor => anchor.href).filter(href => href)
           );
-          
+
           for (const link of links) {
             try {
               await requestQueue.addRequest({
@@ -148,9 +148,9 @@ export class CrawleeService {
       // Create a unique RequestQueue for this crawler instance to avoid conflicts
       const queueId = `${source}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const requestQueue = await RequestQueue.open(queueId);
-      
+
       const crawler = new PuppeteerCrawler({
-        minConcurrency: 2, // Reduced concurrency to prevent resource conflicts
+        minConcurrency: 5, // Reduced concurrency to prevent resource conflicts
         requestQueue,
         maxRequestsPerCrawl: maxPages, // Process all pages in parallel
         launchContext: {
@@ -206,7 +206,7 @@ export class CrawleeService {
             console.log(`[deepCrawlWithPagination] Extracted ${markdown.length} 
                          chars (~${wordCount} words) from ${request.url}`);
 
-            const chunked = this.chunk.chunkStringByCharCount(markdown as string, 6000);
+            const chunked = this.chunk.chunkStringByCharCount(markdown as string, 10000);
 
             for (const val of chunked) {
               const parsedData = await this.ai.parse(`
