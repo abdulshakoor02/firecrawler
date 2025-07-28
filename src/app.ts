@@ -16,8 +16,9 @@ const crawlee = Container.get(CrawleeService)
 // );
 
 // Run crawlers sequentially to avoid storage conflicts
-// Schedule a job to run at 16:31 (4:31 PM)
-const job = scheduler.scheduleJob('31 16 * * *', async () => {
+// Schedule a job to run every Monday at 16:31 (4:31 PM)
+const job = scheduler.scheduleJob('31 16 * * 1', async () => {
+  console.log('[app.ts] Starting Lulu crawling...');
   await crawlee.deepCrawlWithPaginationAndInteraction(
     'https://gcc.luluhypermarket.com/en-ae/grocery-food-cupboard',
     300, // maxPages
