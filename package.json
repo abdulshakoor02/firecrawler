@@ -3,6 +3,10 @@
   "module": "app.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "build": "bunx tsc",
+    "start": "bun dist/src/app.js",
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
