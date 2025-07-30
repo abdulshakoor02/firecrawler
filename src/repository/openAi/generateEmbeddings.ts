@@ -6,7 +6,6 @@ let embedder: any;
 async function initializeEmbedder() {
   if (!embedder) {
     embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-    console.log("Embedding model loaded.");
   }
 }
 

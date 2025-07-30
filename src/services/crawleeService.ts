@@ -6,13 +6,15 @@ import {
   QdrantService,
   OpenaiService,
   ChunkingService,
+  OrchestraterService
 } from './'
 
 import type {
   ChunkingService as ChunkType,
   QdrantService as QdrantType,
   OpenaiService as OpenAiType,
-  EmbeddingService as EmbeddingType
+  EmbeddingService as EmbeddingType,
+  OrchestraterService as OrchestraterType
 } from "./";
 import type { Product, ProductWithEmbedding } from '../models';
 
@@ -23,6 +25,7 @@ export class CrawleeService {
   private ai: OpenAiType
   private embedding: EmbeddingType
   private turndownService: TurndownService
+  private orchestrater: OrchestraterType
 
   constructor() {
     this.turndownService = new TurndownService();
@@ -31,6 +34,7 @@ export class CrawleeService {
     this.qdrant = Container.get(QdrantService)
     this.ai = Container.get(OpenaiService)
     this.embedding = Container.get(EmbeddingService)
+    this.orchestrater = Container.get(OrchestraterService)
   }
 
   public async convertUrlToMarkdown(url: string): Promise<string> {
@@ -127,6 +131,7 @@ export class CrawleeService {
     pageParam: string
   ): Promise<void> {
     const markdownContents: string[] = [];
+    let crawlCount = 0; // Counter to track number of crawls
 
     console.log(`[deepCrawlWithPagination] Starting parallel crawl from: ${startUrl}`);
     console.log(`[deepCrawlWithPagination] Max pages to process: ${maxPages}`);
@@ -143,16 +148,25 @@ export class CrawleeService {
         urls.push(pageUrl.toString());
       }
 
+      console.log(`[deepCrawlWithPagination] Pre-generated URLs:`, urls);
+
       console.log(`[deepCrawlWithPagination] Pre-generated ${urls.length} URLs for parallel processing`);
 
+      // Deduplicate URLs to prevent crawling the same page multiple times
+      const uniqueUrls = [...new Set(urls)];
+      console.log(`[deepCrawlWithPagination] After deduplication: ${uniqueUrls.length} URLs`);
+
       // Create a unique RequestQueue for this crawler instance to avoid conflicts
-      const queueId = `${source}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const requestQueue = await RequestQueue.open(queueId);
+      // const queueId = `${source}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      // const requestQueue = await RequestQueue.open(queueId);
+      // console.log(requestQueue)
 
       const crawler = new PuppeteerCrawler({
         minConcurrency: 5, // Reduced concurrency to prevent resource conflicts
-        requestQueue,
-        maxRequestsPerCrawl: maxPages, // Process all pages in parallel
+        maxRequestRetries: 2, // Limit retries
+        requestHandlerTimeoutSecs: 1000, // Increase timeout
+        // requestQueue,
+        // maxRequestsPerCrawl: maxPages, // Process all pages in parallel
         launchContext: {
           launchOptions: {
             args: ['--no-sandbox'],
@@ -161,13 +175,19 @@ export class CrawleeService {
         handleFailedRequestFunction: async ({ request, error }) => {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`[deepCrawlWithPagination] Request failed for ${request.url}:`, errorMessage);
-          // Don't retry on ENOENT errors
-          if (errorMessage.includes('ENOENT')) {
+          // Don't retry on ENOENT, timeout, or navigation errors
+          if (errorMessage.includes('ENOENT') ||
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('Navigation timeout') ||
+            errorMessage.includes('net::ERR_CONNECTION_TIMED_OUT')) {
+            console.log(`[deepCrawlWithPagination] Skipping retry for ${request.url} due to timeout/error`);
             return;
           }
         },
         requestHandler: async ({ page, request }) => {
-          console.log(`[deepCrawlWithPagination] Processing page: ${request.url}`);
+          crawlCount++; // Increment crawl counter
+          console.log(`[deepCrawlWithPagination] Processing page ${crawlCount}: ${request.url}`);
+          console.log(`[deepCrawlWithPagination] Original URL: ${request.loadedUrl || 'N/A'}`);
 
           // Block unnecessary resources for faster loading
           await page.setRequestInterception(true);
@@ -180,11 +200,15 @@ export class CrawleeService {
             }
           });
 
-          // Wait for page to fully load with faster timeout
-          await page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch((err) => {
-            console.log(`[deepCrawlWithPagination] Page load error: ${err}`);
-          });
-          console.log(`[deepCrawlWithPagination] Page loaded: ${request.url}`);
+          // Set a shorter navigation timeout
+          // page.setDefaultNavigationTimeout(30000); // 30 seconds
+
+          // Wait for specific elements to load
+          try {
+            await page.waitForSelector('main, .main-content, #content, article, body', { timeout: 30000 });
+          } catch (error) {
+            console.log(`[deepCrawlWithPagination] Timeout waiting for content selectors on ${request.url}`);
+          }
 
           // Extract content
           let htmlContent = '';
@@ -196,8 +220,12 @@ export class CrawleeService {
             console.log(`[deepCrawlWithPagination] Found content using selector: ${contentSelectorUsed}`);
           } catch (error) {
             console.log(`[deepCrawlWithPagination] Content selectors not found, falling back to body`);
-            htmlContent = await page.$eval('body', (element) => element.innerHTML);
-            contentSelectorUsed = 'body';
+            try {
+              htmlContent = await page.$eval('body', (element) => element.innerHTML);
+              contentSelectorUsed = 'body';
+            } catch (bodyError) {
+              console.log(`[deepCrawlWithPagination] Failed to extract content from body`);
+            }
           }
 
           if (htmlContent) {
@@ -205,33 +233,20 @@ export class CrawleeService {
             const wordCount = markdown.split(/\s+/).length;
             console.log(`[deepCrawlWithPagination] Extracted ${markdown.length} 
                          chars (~${wordCount} words) from ${request.url}`);
-
-            const chunked = this.chunk.chunkStringByCharCount(markdown as string, 10000);
-
-            for (const val of chunked) {
-              const parsedData = await this.ai.parse(`
-  Convert the following content into a JSON array of product objects 
-  ${val}
-  `);
-              const res = JSON.parse(parsedData?.choices?.[0]?.message?.content as any);
-              console.log(`total products ${res.products.length}`);
-              const result = await this.embedding.producEmbeddings(
-                res.products as unknown as Product[],
-                20,
-                source,
-              ) as ProductWithEmbedding;
-              await this.qdrant.upsertPoints('products', result);
-            }
+            console.log(markdown.length)
+            await this.orchestrater.processCrawleeMarkdown(markdown, source);
+            console.log(`[deepCrawlWithPagination] finished upserting the data: ${request.url}`);
           } else {
             console.log(`[deepCrawlWithPagination] No content extracted from ${request.url}`);
           }
         },
       });
 
-      console.log(`[deepCrawlWithPagination] Starting crawler with ${urls.length} URLs`);
-      await crawler.run(urls);
+      console.log(`[deepCrawlWithPagination] Starting crawler with ${uniqueUrls.length} URLs`);
+      await crawler.run(uniqueUrls);
 
-      console.log(`[deepCrawlWithPagination] Crawling completed. Total pages processed: ${markdownContents.length}`);
+      console.log(`[deepCrawlWithPagination] Crawling completed. Total pages processed: ${urls.length}`);
+      console.log(`[deepCrawlWithPagination] Actual crawl operations performed: ${crawlCount}`);
 
     } catch (error) {
       console.error(`[deepCrawlWithPagination] Error during crawling:`, error);

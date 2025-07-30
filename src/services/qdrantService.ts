@@ -18,7 +18,7 @@ export class QdrantService {
       await this.client.createCollection(collectionName, {
         vectors: {
           size: vectorSize, // Specify the vector size for your model
-          distance: 'Cosine',
+          distance: 'Dot',
         },
       });
       console.log(`Collection '${collectionName}' created successfully.`);
@@ -68,7 +68,7 @@ export class QdrantService {
         limit: limit,
         params: { exact: true },
         with_payload: true,
-        score_threshold: 0.65
+        score_threshold: 0.75
       });
       return searchResult;
     } catch (error) {

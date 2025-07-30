@@ -58,4 +58,25 @@ ${val}
       await this.qdrant.upsertPoints('products', result);
     })
   }
+
+  public async processCrawleeMarkdown(markdown: string, source: string) {
+    const chunked = this.chunk.chunkStringByCharCount(markdown as string, 10000);
+    console.log('lenght of chunked markdown:', chunked.length)
+    const parseData = []
+    for (const val of chunked) {
+      parseData.push(this.ai.parse(`
+      Convert the following content into a JSON array of product objects 
+      ${val}
+      `))
+    }
+    let products = [] as any;
+    const parsedProducts = await Promise.all(parseData) as any;
+    for (const prod of parsedProducts) {
+      console.log('chunked products :', prod.length)
+      products = [...products, ...prod]
+    }
+    console.log('collated products:', products.length)
+    const ProductWithEmbedding = await this.embedding.producEmbeddings(products as unknown as Product[], 20, source)
+    await this.qdrant.upsertPoints('products', ProductWithEmbedding);
+  }
 }

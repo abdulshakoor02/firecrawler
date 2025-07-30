@@ -3,20 +3,20 @@ import scheduler from 'node-schedule'
 import { Container } from 'typedi'
 import {
   OrchestraterService,
-  CrawleeService
+  CrawleeService,
+  EmbeddingService,
+  QdrantService,
+  OpenaiService
 } from './services'
+import { string } from 'zod';
 
 const orchestrate = Container.get(OrchestraterService)
 const crawlee = Container.get(CrawleeService)
+const qdrant = Container.get(QdrantService)
+const embed = Container.get(EmbeddingService)
+const ai = Container.get(OpenaiService)
 
-// await crawlee.deepCrawlAndConvertToMarkdown(
-//   'https://gcc.luluhypermarket.com/en-ae/',
-//   500, // maxRequestsPerCrawl
-//   2,  // maxDepth
-// );
-
-// Run crawlers sequentially to avoid storage conflicts
-// Schedule a job to run every Monday at 16:31 (4:31 PM)
+// Schedule a job to run every Monday at 16: 31(4: 31 PM)
 const job = scheduler.scheduleJob('31 16 * * 1', async () => {
   console.log('[app.ts] Starting Lulu crawling...');
   await crawlee.deepCrawlWithPaginationAndInteraction(
@@ -45,16 +45,5 @@ const job = scheduler.scheduleJob('31 16 * * 1', async () => {
   )
 
   console.log('[app.ts] All crawling operations completed successfully!');
-  // await crawlee.deepCrawlWithPaginationAndInteraction(
-  //   'https://www.unioncoop.ae/fresh-food/fruits-vegetables.html',
-  //   300, // maxPages
-  //   'union coop',
-  //   'page'
-  // )
-
 });
 
-
-// payload.push(orchestrate.crawl4aiJob('https://gcc.luluhypermarket.com/en-ae/grocery/', 'lulu'))
-// payload.push(orchestrate.crawl4aiJob('https://gcc.luluhypermarket.com/en-ae/grocery/', 'lulu'))
-// Promise.all(payload)
